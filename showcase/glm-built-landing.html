@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PERCH AGENT — Delegate Everything</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Space+Grotesk:wght@300;400;500&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0a0a0c; --ink:#f2f0ea; --dim:#8a8894; --line:rgba(242,240,234,.08);
+  --acc:#c8f04a; --acc2:#7c6cff;
+  --font-d:"Syne",sans-serif; --font-b:"Space Grotesk",sans-serif; --font-m:"JetBrains Mono",monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scrollbar-width:none}
+html::-webkit-scrollbar{display:none}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-b);overflow-x:hidden;cursor:none}
+a{color:inherit;text-decoration:none}
+::selection{background:var(--acc);color:#0a0a0c}
+canvas#gl{position:fixed;inset:0;width:100%;height:100%;z-index:0}
+.grain{position:fixed;inset:-50%;width:200%;height:200%;z-index:60;pointer-events:none;opacity:.05;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation:grain 8s steps(10) infinite}
+@keyframes grain{0%,100%{transform:translate(0,0)}20%{transform:translate(-3%,2%)}40%{transform:translate(2%,-3%)}60%{transform:translate(-2%,-2%)}80%{transform:translate(3%,3%)}}
+.cursor{position:fixed;z-index:99;pointer-events:none;left:0;top:0;mix-blend-mode:difference}
+.cursor .dot{width:8px;height:8px;background:#fff;border-radius:50%;transform:translate(-50%,-50%)}
+.cursor .ring{position:absolute;width:36px;height:36px;border:1px solid #fff;border-radius:50%;transform:translate(-50%,-50%);transition:width .3s,height .3s}
+.cursor.hover .ring{width:64px;height:64px}
+/* preloader */
+.pre{position:fixed;inset:0;z-index:100;background:#050506;display:flex;align-items:flex-end;justify-content:space-between;padding:4vw}
+.pre .num{font-family:var(--font-d);font-weight:800;font-size:clamp(5rem,16vw,14rem);line-height:.85;color:var(--ink)}
+.pre .lbl{font-family:var(--font-m);font-size:11px;letter-spacing:.3em;color:var(--dim);text-transform:uppercase;margin-bottom:2vw}
+/* layout */
+main{position:relative;z-index:1}
+section{position:relative;padding:0 4vw}
+.hairline{position:absolute;left:4vw;right:4vw;height:1px;background:var(--line)}
+/* nav */
+nav{position:fixed;top:0;left:0;right:0;z-index:50;display:flex;justify-content:space-between;align-items:center;padding:22px 4vw;mix-blend-mode:difference;font-family:var(--font-m);font-size:11px;letter-spacing:.25em;text-transform:uppercase}
+nav .brand{display:flex;gap:10px;align-items:center}
+nav .dotp{width:8px;height:8px;border-radius:50%;background:var(--acc);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+nav a{margin-left:28px;opacity:.7}nav a:hover{opacity:1}
+/* hero */
+.hero{min-height:100svh;display:flex;flex-direction:column;justify-content:flex-end;padding-bottom:6vh}
+.hero h1{font-family:var(--font-d);font-weight:800;font-size:clamp(3.4rem,11.5vw,11.5rem);line-height:.92;letter-spacing:-.02em;text-transform:uppercase}
+.hero h1 .row{display:block;overflow:hidden}
+.hero h1 .ch{display:inline-block;transform:translateY(110%)}
+.hero h1 .outline{color:transparent;-webkit-text-stroke:1.5px var(--ink)}
+.hero h1 .acc{color:var(--acc)}
+.hero .sub{display:flex;justify-content:space-between;align-items:flex-end;margin-top:4vh;gap:4vw;flex-wrap:wrap}
+.hero p{max-width:34ch;color:var(--dim);font-size:clamp(.95rem,1.1vw,1.05rem);line-height:1.6}
+.hero p b{color:var(--ink);font-weight:500}
+.scrollcue{font-family:var(--font-m);font-size:10px;letter-spacing:.3em;color:var(--dim);text-transform:uppercase;display:flex;align-items:center;gap:14px}
+.scrollcue::before{content:"";display:block;width:1px;height:48px;background:linear-gradient(var(--acc),transparent);animation:drop 1.6s ease-in-out infinite}
+@keyframes drop{0%{transform:scaleY(0);transform-origin:top}50%{transform:scaleY(1);transform-origin:top}51%{transform-origin:bottom}100%{transform:scaleY(0);transform-origin:bottom}}
+/* marquee */
+.marq{border-top:1px solid var(--line);border-bottom:1px solid var(--line);overflow:hidden;padding:18px 0;margin-top:-1px}
+.marq .track{display:flex;gap:3rem;width:max-content;animation:marq 22s linear infinite;font-family:var(--font-d);font-weight:700;font-size:clamp(1.1rem,2vw,1.6rem);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+.marq .track span{display:flex;gap:3rem}
+.marq i{font-style:normal;color:var(--acc)}
+@keyframes marq{to{transform:translateX(-50%)}}
+/* manifesto */
+.manif{padding:22vh 4vw}
+.manif p{font-family:var(--font-d);font-weight:700;font-size:clamp(1.7rem,4.2vw,3.9rem);line-height:1.18;max-width:20ch;letter-spacing:-.01em}
+.manif .w{display:inline-block;opacity:.12;transform:translateY(.35em);filter:blur(4px)}
+.manif .em{color:var(--acc)}
+.manif .side{position:absolute;right:4vw;top:24vh;font-family:var(--font-m);font-size:11px;color:var(--dim);letter-spacing:.2em;max-width:22ch;text-align:right;line-height:1.9}
+/* horizontal cards */
+.hwrap{height:100svh;overflow:hidden}
+.hpin{height:100%;display:flex;align-items:center;gap:3vw;padding:0 4vw;width:max-content}
+.hcard{width:min(560px,72vw);flex-shrink:0;border:1px solid var(--line);border-radius:20px;padding:2.6rem;background:linear-gradient(160deg,rgba(255,255,255,.035),rgba(255,255,255,.008));backdrop-filter:blur(6px);position:relative;overflow:hidden}
+.hcard::after{content:"";position:absolute;inset:0;background:radial-gradient(600px 300px at 80% -10%,rgba(124,108,255,.16),transparent 60%);pointer-events:none}
+.hcard .idx{font-family:var(--font-m);font-size:11px;color:var(--acc);letter-spacing:.3em}
+.hcard h3{font-family:var(--font-d);font-weight:800;font-size:clamp(1.8rem,3.2vw,2.8rem);margin:1.2rem 0 1rem;text-transform:uppercase;line-height:1}
+.hcard p{color:var(--dim);line-height:1.65;max-width:46ch}
+.hcard .tags{display:flex;gap:8px;margin-top:1.6rem;flex-wrap:wrap}
+.hcard .tags span{font-family:var(--font-m);font-size:10px;letter-spacing:.15em;border:1px solid var(--line);border-radius:100px;padding:6px 12px;color:var(--dim);text-transform:uppercase}
+/* stats */
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.stat{background:var(--bg);padding:9vh 3vw}
+.stat .n{font-family:var(--font-d);font-weight:800;font-size:clamp(3rem,7vw,6.5rem);line-height:1;color:var(--ink)}
+.stat .n em{font-style:normal;color:var(--acc)}
+.stat .l{font-family:var(--font-m);font-size:10px;letter-spacing:.28em;color:var(--dim);text-transform:uppercase;margin-top:14px}
+/* threads / sticky 3d */
+.threads{min-height:220vh}
+.threads .sticky{position:sticky;top:0;height:100svh;display:flex;align-items:center;overflow:hidden}
+.threads h2{font-family:var(--font-d);font-weight:800;font-size:clamp(3rem,9vw,9rem);line-height:.95;text-transform:uppercase;position:relative;z-index:2}
+.threads h2 .ghost{color:transparent;-webkit-text-stroke:1px rgba(242,240,234,.35)}
+.threads .step{position:absolute;font-family:var(--font-m);font-size:11px;letter-spacing:.2em;color:var(--acc);border:1px solid rgba(200,240,74,.35);border-radius:100px;padding:8px 16px;background:rgba(200,240,74,.06);z-index:2}
+/* footer */
+footer{padding:14vh 4vw 6vh;position:relative}
+.cta{display:inline-flex;align-items:center;gap:18px;border:1px solid var(--ink);border-radius:100px;padding:20px 42px;font-family:var(--font-d);font-weight:700;font-size:clamp(1rem,1.6vw,1.4rem);text-transform:uppercase;letter-spacing:.06em;position:relative;overflow:hidden}
+.cta .fill{position:absolute;inset:0;background:var(--acc);transform:translateY(101%);border-radius:inherit}
+.cta:hover .fill{transform:translateY(0);transition:transform .45s cubic-bezier(.76,0,.24,1)}
+.cta:hover{color:#0a0a0c;border-color:var(--acc)}
+.cta span{position:relative;z-index:1}
+.bigword{font-family:var(--font-d);font-weight:800;font-size:clamp(4rem,17vw,17rem);line-height:.8;text-transform:uppercase;text-align:center;margin-top:12vh;color:transparent;-webkit-text-stroke:1px rgba(242,240,234,.18);user-select:none}
+.bigword .fill2{color:var(--ink);-webkit-text-stroke:0}
+.fmeta{display:flex;justify-content:space-between;margin-top:8vh;font-family:var(--font-m);font-size:10px;letter-spacing:.22em;color:var(--dim);text-transform:uppercase;flex-wrap:wrap;gap:12px}
+@media (max-width:760px){.stats{grid-template-columns:1fr}.manif .side{display:none}.hero .sub{margin-top:6vh}}
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div class="grain"></div>
+<div class="cursor"><div class="ring"></div><div class="dot"></div></div>
+
+<div class="pre">
+  <div class="lbl">Perch Agent · Worker Protocol</div>
+  <div class="num">00</div>
+</div>
+
+<nav>
+  <div class="brand"><span class="dotp"></span> PERCH&nbsp;AGENT</div>
+  <div><a href="#work">System</a><a href="#stats">Numbers</a><a href="#threads">Threads</a></div>
+</nav>
+
+<main>
+  <section class="hero">
+    <h1 aria-label="Delegate everything">
+      <span class="row" data-split>Delegate</span>
+      <span class="row outline" data-split>Everything.</span>
+      <span class="row" data-split>We <span class="acc">orchestrate</span></span>
+    </h1>
+    <div class="sub">
+      <p>Claude Code stays the <b>orchestrator</b>. Perch AI becomes the <b>worker</b> — autonomous, threaded, verified with real evidence. One protocol. Local. Yours.</p>
+      <div class="scrollcue">Scroll to delegate</div>
+    </div>
+  </section>
+
+  <div class="marq"><div class="track" id="marq"></div></div>
+
+  <section class="manif">
+    <div class="side">MANIFESTO<br>03 PRINCIPLES<br>EVIDENCE > CLAIMS<br>SCOPE > SCOPE-CREEP</div>
+    <p id="manif-text">Stop doing the work. Start <span class="em">judging</span> the work. A worker that quotes its own <span class="em">test output</span> is worth ten that swear it's done.</p>
+  </section>
+
+  <section class="hwrap" id="work">
+    <div class="hpin" id="hpin">
+      <div class="hcard"><div class="idx">01 / WORKER</div><h3>Autonomous<br>Execution</h3><p>Perch runs with its own bash, file tools and skills inside your working directory. It writes, runs, breaks, fixes — then answers.</p><div class="tags"><span>bash</span><span>files</span><span>skills</span><span>262k ctx</span></div></div>
+      <div class="hcard"><div class="idx">02 / ORCHESTRATOR</div><h3>Claude<br>Commands</h3><p>One MCP tool call delegates the task; Claude keeps the plan, the deadlines and the blame. Structured results, thread ids, usage — never vibes.</p><div class="tags"><span>mcp</span><span>structured</span><span>cancellable</span></div></div>
+      <div class="hcard"><div class="idx">03 / EVIDENCE</div><h3>Verify Or<br>It Didn't</h3><p>Every delegation ends with the real command and its real output. Guidelines are baked in: assumptions surfaced, scope surgical, no finishing without proof.</p><div class="tags"><span>karpathy</span><span>evidence</span><span>scope</span></div></div>
+      <div class="hcard"><div class="idx">04 / ROUTING</div><h3>Free Tiers,<br>Smart Pins</h3><p>Roost routes automatically; pin Qwen 3.8 Max, DeepSeek, Kimi per task. Model identity and token usage ride back with every result.</p><div class="tags"><span>roost</span><span>pin ids</span><span>usage</span></div></div>
+    </div>
+  </section>
+
+  <section class="stats" id="stats">
+    <div class="stat"><div class="n"><span data-count="31">0</span><em>+</em></div><div class="l">Tests passed / exercise</div></div>
+    <div class="stat"><div class="n"><span data-count="262">0</span><em>k</em></div><div class="l">Context window, tokens</div></div>
+    <div class="stat"><div class="n"><span data-count="100">0</span><em>%</em></div><div class="l">Local, no cloud keys</div></div>
+  </section>
+
+  <section class="threads" id="threads">
+    <div class="sticky">
+      <h2><span class="ghost">Threads</span><br>Remember.</h2>
+      <div class="step" style="top:24vh;left:8vw">--thread cli-cwd-…</div>
+      <div class="step" style="bottom:22vh;right:10vw">context carried across turns</div>
+    </div>
+  </section>
+
+  <footer>
+    <a class="cta" href="#" data-magnet><div class="fill"></div><span>Start delegating</span><span class="arr">→</span></a>
+    <div class="bigword" aria-hidden="true">PERCH<span class="fill2">*</span>AGENT</div>
+    <div class="fmeta">
+      <div>MCP · stdio · localhost</div>
+      <div>Qwen 3.8 Max · free until Nov 20</div>
+      <div>© 2026 — built by two agents, one cup of cold coffee</div>
+    </div>
+  </footer>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<script src="https://unpkg.com/lenis@1.1.14/dist/lenis.min.js"></script>
+<script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+import * as THREE from "three";
+
+/* ---------- WebGL: flowing noise field ---------- */
+const cnv = document.getElementById("gl");
+const renderer = new THREE.WebGLRenderer({canvas:cnv, antialias:false});
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const scene = new THREE.Scene();
+const cam = new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+const uniforms = {
+  u_t:{value:0}, u_res:{value:new THREE.Vector2()}, u_m:{value:new THREE.Vector2(.5,.5)}
+};
+const mat = new THREE.ShaderMaterial({uniforms, fragmentShader:`
+precision highp float;
+uniform float u_t; uniform vec2 u_res, u_m;
+float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
+  return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}
+float fbm(vec2 p){float v=0.,a=.55;for(int i=0;i<5;i++){v+=a*noise(p);p*=2.03;a*=.5;}return v;}
+void main(){
+  vec2 uv=(gl_FragCoord.xy-.5*u_res)/u_res.y;
+  vec2 m=(u_m-.5);
+  float t=u_t*.06;
+  vec2 q=uv*1.9; q+=m*.35;
+  float n=fbm(q+vec2(t,-t*.6)+1.5*fbm(q-t*.4));
+  vec3 base=vec3(.038,.038,.046);
+  vec3 ink=vec3(.55,.56,.62);
+  vec3 lime=vec3(.78,.94,.29);
+  vec3 vio =vec3(.49,.42,1.);
+  float bands=smoothstep(.45,.75,n);
+  vec3 col=base+ink*bands*.16;
+  col+=lime*smoothstep(.72,.95,n)*.28;
+  col+=vio*smoothstep(.62,.9,fbm(q*1.7-t*.5))*.10;
+  float vig=1.-dot(uv,uv)*.85;
+  col*=vig;
+  gl_FragColor=vec4(col,1.);
+}`});
+scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2), mat));
+const mouse={x:.5,y:.5};
+addEventListener("pointermove",e=>{mouse.x=e.clientX/innerWidth;mouse.y=1-e.clientY/innerHeight;});
+function size(){renderer.setSize(innerWidth,innerHeight,false);uniforms.u_res.value.set(innerWidth*renderer.getPixelRatio(),innerHeight*renderer.getPixelRatio());}
+size();addEventListener("resize",size);
+const clock=new THREE.Clock();
+renderer.setAnimationLoop(()=>{uniforms.u_t.value=clock.getElapsedTime();
+  uniforms.u_m.value.lerp(new THREE.Vector2(mouse.x,mouse.y),.04);
+  renderer.render(scene,cam);});
+
+/* ---------- split text ---------- */
+document.querySelectorAll("[data-split]").forEach(el=>{
+  el.querySelectorAll("span.acc,span").forEach(s=>{ if(s.classList.contains("acc")){s.dataset.keep=1;} });
+  const walk=(node)=>{
+    [...node.childNodes].forEach(ch=>{
+      if(ch.nodeType===3){
+        const frag=document.createDocumentFragment();
+        [...ch.textContent].forEach(c=>{
+          const s=document.createElement("span");s.className="ch";s.textContent=c===" "?"\u00A0":c;frag.appendChild(s);
+        });
+        node.replaceChild(frag,ch);
+      } else if(ch.nodeType===1 && !ch.dataset.keep){ walk(ch); }
+    });
+  };
+  walk(el);
+});
+
+/* ---------- lenis + gsap ---------- */
+gsap.registerPlugin(ScrollTrigger);
+const lenis=new Lenis({lerp:.09});
+lenis.on("scroll",ScrollTrigger.update);
+gsap.ticker.add(t=>lenis.raf(t*1000));
+gsap.ticker.lagSmoothing(0);
+
+/* ---------- preloader ---------- */
+const pre=document.querySelector(".pre"), num=document.querySelector(".pre .num");
+const load={v:0};
+const intro=gsap.timeline({paused:true});
+intro.to(".hero h1 .ch",{y:0,duration:.9,stagger:.03,ease:"power4.out"})
+  .from("nav",{y:-24,opacity:0,duration:.7,ease:"power3.out"},"-=.5")
+  .from(".hero .sub > *",{y:24,opacity:0,stagger:.12,duration:.7,ease:"power3.out"},"-=.4");
+const preload=gsap.timeline({onComplete:()=>{pre.remove();intro.play();}});
+preload.to(load,{v:100,duration:1.6,ease:"power2.inOut",onUpdate:()=>num.textContent=String(Math.round(load.v)).padStart(2,"0")})
+  .to(pre,{yPercent:-100,duration:.9,ease:"power4.inOut"},"+=.15");
+
+/* ---------- manifesto word reveal ---------- */
+const mt=document.getElementById("manif-text");
+mt.innerHTML=mt.innerHTML.split(/(<span class="em">.*?<\/span>|\s+)/g).filter(w=>w.trim()).map(w=>
+  `<span class="w">${w}</span>`).join(" ");
+gsap.to(".manif .w",{opacity:1,y:0,filter:"blur(0px)",stagger:.06,ease:"none",
+  scrollTrigger:{trigger:".manif",start:"top 75%",end:"bottom 70%",scrub:.6}});
+
+/* ---------- horizontal cards ---------- */
+const hpin=document.getElementById("hpin");
+gsap.to(hpin,{x:()=>-(hpin.scrollWidth-innerWidth+2*innerWidth*.04),ease:"none",
+  scrollTrigger:{trigger:".hwrap",start:"top top",end:()=>"+="+(hpin.scrollWidth-innerWidth),scrub:1,pin:true,invalidateOnRefresh:true}});
+
+/* ---------- stats counters ---------- */
+document.querySelectorAll("[data-count]").forEach(el=>{
+  const target=+el.dataset.count;
+  ScrollTrigger.create({trigger:el,start:"top 85%",once:true,onEnter:()=>{
+    gsap.fromTo(el,{textContent:0},{textContent:target,duration:1.6,snap:{textContent:1},ease:"power2.out"});
+  }});
+});
+
+/* ---------- threads parallax ---------- */
+gsap.to(".threads h2",{yPercent:-30,ease:"none",scrollTrigger:{trigger:".threads",start:"top top",end:"bottom bottom",scrub:1}});
+gsap.utils.toArray(".threads .step").forEach((s,i)=>{
+  gsap.to(s,{y:i%2?60:-60,ease:"none",scrollTrigger:{trigger:".threads",start:"top top",end:"bottom bottom",scrub:1.4}});
+});
+
+/* ---------- marquee content ---------- */
+const words=["Delegate Everything","<i>◆</i>","Qwen 3.8 Max","<i>◆</i>","Evidence Or Nothing","<i>◆</i>","Local First","<i>◆</i>","Threads Remember","<i>◆</i>"];
+document.getElementById("marq").innerHTML=`<span>${words.join(" ")}</span><span>${words.join(" ")}</span>`;
+
+/* ---------- cursor ---------- */
+const cur=document.querySelector(".cursor"), ring=cur.querySelector(".ring"), dot=cur.querySelector(".dot");
+let mx=innerWidth/2,my=innerHeight/2,rx=mx,ry=my;
+addEventListener("pointermove",e=>{mx=e.clientX;my=e.clientY;
+  dot.style.transform=`translate(${mx}px,${my}px) translate(-50%,-50%)`;});
+gsap.ticker.add(()=>{rx+=(mx-rx)*.14;ry+=(my-ry)*.14;
+  ring.style.transform=`translate(${rx}px,${ry}px) translate(-50%,-50%)`;});
+document.querySelectorAll("a,.hcard,.cta").forEach(el=>{
+  el.addEventListener("pointerenter",()=>cur.classList.add("hover"));
+  el.addEventListener("pointerleave",()=>cur.classList.remove("hover"));
+});
+
+/* ---------- magnetic cta ---------- */
+document.querySelectorAll("[data-magnet]").forEach(el=>{
+  el.addEventListener("pointermove",e=>{
+    const r=el.getBoundingClientRect();
+    gsap.to(el,{x:(e.clientX-r.left-r.width/2)*.3,y:(e.clientY-r.top-r.height/2)*.4,duration:.4});
+  });
+  el.addEventListener("pointerleave",()=>gsap.to(el,{x:0,y:0,duration:.7,ease:"elastic.out(1,.4)"}));
+});
+
+/* ---------- section reveal helper ---------- */
+gsap.utils.toArray(".hcard,.stat,.marq").forEach(el=>{
+  gsap.from(el,{y:60,opacity:0,duration:1,ease:"power3.out",
+    scrollTrigger:{trigger:el,start:"top 88%"}});
+});
+</script>
+</body>
+</html>

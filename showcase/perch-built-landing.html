@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PERCH AGENT — Delegate Everything</title>
+<meta name="description" content="An MCP tool that lets Claude Code delegate tasks to Perch AI as an autonomous worker agent.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* ============ RESET / TOKENS ============ */
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#050505;
+  --ink:#f2efe9;
+  --dim:#8a877f;
+  --accent:#ff4d1c;
+  --accent2:#ffb020;
+  --line:rgba(242,239,233,.10);
+  --font-display:'Syne',sans-serif;
+  --font-body:'Space Grotesk',sans-serif;
+  --font-mono:'JetBrains Mono',monospace;
+}
+html{scrollbar-width:none}
+html::-webkit-scrollbar{display:none}
+html.lenis,html.lenis body{height:auto}
+.lenis.lenis-smooth{scroll-behavior:auto!important}
+.lenis.lenis-smooth [data-lenis-prevent]{overscroll-behavior:contain}
+.lenis.lenis-stopped{overflow:hidden}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--font-body);
+  overflow-x:hidden;
+  cursor:none;
+  -webkit-font-smoothing:antialiased;
+}
+a,button{cursor:none}
+::selection{background:var(--accent);color:#000}
+
+/* ============ WEBGL CANVAS ============ */
+#gl{position:fixed;inset:0;z-index:0;pointer-events:none}
+
+/* ============ FILM GRAIN ============ */
+.grain{
+  position:fixed;inset:-100%;width:300%;height:300%;
+  z-index:9000;pointer-events:none;opacity:.07;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation:grainShift 0.9s steps(6) infinite;
+}
+@keyframes grainShift{
+  0%{transform:translate(0,0)}16%{transform:translate(-4%,3%)}33%{transform:translate(3%,-5%)}
+  50%{transform:translate(-5%,-3%)}66%{transform:translate(4%,4%)}83%{transform:translate(-3%,5%)}100%{transform:translate(0,0)}
+}
+.vignette{position:fixed;inset:0;z-index:8990;pointer-events:none;
+  background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.55) 100%)}
+
+/* ============ CUSTOM CURSOR ============ */
+.cursor-dot,.cursor-ring{position:fixed;top:0;left:0;z-index:9500;pointer-events:none;border-radius:50%;
+  transform:translate(-50%,-50%)}
+.cursor-dot{width:6px;height:6px;background:var(--accent)}
+.cursor-ring{width:38px;height:38px;border:1px solid rgba(242,239,233,.5);
+  transition:width .25s,height .25s,border-color .25s,background .25s}
+.cursor-ring.hovering{width:64px;height:64px;border-color:var(--accent);background:rgba(255,77,28,.08)}
+@media (hover:none),(pointer:coarse){
+  .cursor-dot,.cursor-ring{display:none}
+  body,a,button{cursor:auto}
+}
+
+/* ============ PRELOADER ============ */
+#preloader{
+  position:fixed;inset:0;z-index:9999;background:#050505;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;
+}
+.pre-mark{font-family:var(--font-display);font-weight:800;font-size:clamp(28px,5vw,56px);
+  letter-spacing:.35em;text-transform:uppercase;color:var(--ink);opacity:0}
+.pre-bar{width:min(320px,60vw);height:1px;background:var(--line);position:relative;overflow:hidden}
+.pre-bar span{position:absolute;inset:0;background:var(--accent);transform:scaleX(0);transform-origin:left}
+.pre-count{font-family:var(--font-mono);font-size:clamp(48px,10vw,110px);font-weight:700;
+  color:var(--ink);line-height:1;font-variant-numeric:tabular-nums}
+.pre-count sup{font-size:.3em;color:var(--accent);vertical-align:super;margin-left:4px}
+
+/* ============ LAYOUT ============ */
+main{position:relative;z-index:2}
+section{position:relative;padding:14vh 6vw}
+.wrap{max-width:1280px;margin:0 auto}
+.eyebrow{font-family:var(--font-mono);font-size:11px;letter-spacing:.3em;text-transform:uppercase;
+  color:var(--accent);display:flex;align-items:center;gap:12px;margin-bottom:28px}
+.eyebrow::before{content:'';width:34px;height:1px;background:var(--accent)}
+
+/* ============ NAV ============ */
+nav{position:fixed;top:0;left:0;right:0;z-index:8000;display:flex;align-items:center;
+  justify-content:space-between;padding:22px 6vw;mix-blend-mode:difference}
+.nav-logo{font-family:var(--font-display);font-weight:800;font-size:18px;letter-spacing:.28em;
+  text-transform:uppercase;color:#fff;text-decoration:none}
+.nav-links{display:flex;gap:36px;font-family:var(--font-mono);font-size:11px;letter-spacing:.2em;
+  text-transform:uppercase}
+.nav-links a{color:#fff;text-decoration:none;opacity:.7;transition:opacity .3s}
+.nav-links a:hover{opacity:1}
+@media(max-width:720px){.nav-links{display:none}}
+
+/* ============ HERO ============ */
+.hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding-top:18vh}
+.hero h1{font-family:var(--font-display);font-weight:800;text-transform:uppercase;
+  font-size:clamp(52px,11.5vw,190px);line-height:.92;letter-spacing:-.02em}
+.hero h1 .line{display:block;overflow:hidden}
+.hero h1 .char{display:inline-block;will-change:transform}
+.hero h1 .outline{-webkit-text-stroke:1.5px var(--ink);color:transparent}
+.hero h1 .accent{color:var(--accent)}
+.hero h1 .accent-dot{color:var(--accent);display:inline-block;margin-left:-.04em}
+.hero-sub{display:flex;justify-content:space-between;align-items:flex-end;gap:40px;margin-top:56px;flex-wrap:wrap}
+.hero-sub p{max-width:480px;color:var(--dim);font-size:17px;line-height:1.65;font-weight:300}
+.hero-sub p strong{color:var(--ink);font-weight:500}
+.hero-cta{display:flex;gap:20px;align-items:center}
+.scroll-hint{position:absolute;bottom:34px;left:6vw;font-family:var(--font-mono);font-size:10px;
+  letter-spacing:.3em;text-transform:uppercase;color:var(--dim);display:flex;align-items:center;gap:10px}
+.scroll-hint::after{content:'';width:1px;height:44px;background:linear-gradient(var(--accent),transparent);
+  animation:hintDrop 1.8s ease-in-out infinite}
+@keyframes hintDrop{0%{transform:scaleY(0);transform-origin:top}50%{transform:scaleY(1);transform-origin:top}
+  51%{transform-origin:bottom}100%{transform:scaleY(0);transform-origin:bottom}}
+
+/* ============ MAGNETIC BUTTON ============ */
+.magnetic{position:relative;display:inline-flex;align-items:center;justify-content:center;
+  padding:20px 44px;border:1px solid var(--ink);border-radius:100px;background:transparent;
+  color:var(--ink);font-family:var(--font-mono);font-size:12px;letter-spacing:.25em;text-transform:uppercase;
+  text-decoration:none;overflow:hidden;will-change:transform}
+.magnetic .btn-fill{position:absolute;inset:0;background:var(--accent);border-radius:100px;
+  transform:translateY(101%);transition:transform .45s cubic-bezier(.65,0,.35,1);z-index:0}
+.magnetic:hover .btn-fill{transform:translateY(0)}
+.magnetic span.label{position:relative;z-index:1;transition:color .35s}
+.magnetic:hover span.label{color:#000}
+.magnetic.solid{border-color:var(--accent);background:var(--accent);color:#000}
+.magnetic.solid .btn-fill{background:var(--ink)}
+.magnetic.solid:hover span.label{color:#000}
+
+/* ============ MARQUEE ============ */
+.marquee{padding:0;overflow:hidden;border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  background:rgba(5,5,5,.4);backdrop-filter:blur(2px)}
+.marquee-track{display:flex;width:max-content;will-change:transform}
+.marquee-track .seg{display:flex;align-items:center;gap:56px;padding:26px 28px;white-space:nowrap;
+  font-family:var(--font-display);font-weight:700;text-transform:uppercase;font-size:clamp(22px,3.4vw,44px)}
+.marquee-track .seg em{font-style:normal;color:var(--accent);font-size:.55em;font-family:var(--font-mono);letter-spacing:.2em}
+
+/* ============ MANIFESTO / SCRUB REVEAL ============ */
+.manifesto{padding:22vh 6vw}
+.manifesto p{font-family:var(--font-display);font-weight:600;font-size:clamp(26px,4.4vw,58px);
+  line-height:1.28;max-width:1100px}
+.manifesto .word{display:inline-block;margin-right:.28em}
+.manifesto .word .w-inner{display:inline-block;color:rgba(242,239,233,.12);will-change:color}
+
+/* ============ HORIZONTAL PINNED ============ */
+.h-pin{padding:0;height:400vh}
+.h-sticky{position:sticky;top:0;height:100vh;overflow:hidden;display:flex;flex-direction:column;justify-content:center}
+.h-head{padding:0 6vw;margin-bottom:44px;display:flex;justify-content:space-between;align-items:baseline;gap:20px}
+.h-head h2{font-family:var(--font-display);font-weight:800;text-transform:uppercase;
+  font-size:clamp(30px,5vw,64px);letter-spacing:-.01em}
+.h-progress{font-family:var(--font-mono);font-size:11px;color:var(--dim);letter-spacing:.2em}
+.h-track{display:flex;gap:32px;padding:0 6vw;will-change:transform}
+.f-card{flex:0 0 clamp(280px,30vw,420px);height:clamp(380px,52vh,520px);border:1px solid var(--line);
+  border-radius:20px;padding:36px;display:flex;flex-direction:column;justify-content:space-between;
+  background:rgba(12,12,12,.55);backdrop-filter:blur(8px);position:relative;overflow:hidden;
+  transition:border-color .4s}
+.f-card:hover{border-color:rgba(255,77,28,.5)}
+.f-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:0;transition:opacity .4s}
+.f-card:hover::before{opacity:1}
+.f-num{font-family:var(--font-mono);font-size:12px;color:var(--accent);letter-spacing:.3em}
+.f-card h3{font-family:var(--font-display);font-weight:700;font-size:clamp(24px,2.4vw,34px);
+  line-height:1.1;text-transform:uppercase;margin:18px 0 14px}
+.f-card p{color:var(--dim);font-size:15px;line-height:1.65;font-weight:300}
+.f-icon{width:56px;height:56px;border:1px solid var(--line);border-radius:14px;display:flex;
+  align-items:center;justify-content:center;font-size:24px;background:rgba(255,77,28,.06)}
+.f-tag{font-family:var(--font-mono);font-size:10px;letter-spacing:.25em;text-transform:uppercase;
+  color:var(--dim);border-top:1px solid var(--line);padding-top:18px}
+
+/* ============ STATS ============ */
+.stats{border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line)}
+.stat{background:var(--bg);padding:64px 32px;text-align:left}
+.stat .num{font-family:var(--font-display);font-weight:800;font-size:clamp(44px,6vw,88px);
+  line-height:1;color:var(--ink);font-variant-numeric:tabular-nums}
+.stat .num .suf{color:var(--accent)}
+.stat .lbl{font-family:var(--font-mono);font-size:11px;letter-spacing:.25em;text-transform:uppercase;
+  color:var(--dim);margin-top:16px}
+@media(max-width:860px){.stats-grid{grid-template-columns:repeat(2,1fr)}}
+
+/* ============ CODE SECTION ============ */
+.split{display:grid;grid-template-columns:1fr 1.1fr;gap:64px;align-items:center}
+@media(max-width:960px){.split{grid-template-columns:1fr}}
+.split h2{font-family:var(--font-display);font-weight:800;text-transform:uppercase;
+  font-size:clamp(32px,4.6vw,60px);line-height:1.02;margin-bottom:24px}
+.split p{color:var(--dim);font-size:16px;line-height:1.7;font-weight:300;margin-bottom:16px}
+.code-window{border:1px solid var(--line);border-radius:16px;overflow:hidden;background:rgba(10,10,10,.8);
+  backdrop-filter:blur(6px);font-family:var(--font-mono);font-size:13.5px;line-height:1.75}
+.code-bar{display:flex;gap:8px;padding:14px 18px;border-bottom:1px solid var(--line);align-items:center}
+.code-bar i{width:11px;height:11px;border-radius:50%;background:#2a2a2a;display:block}
+.code-bar i:first-child{background:#ff5f57}.code-bar i:nth-child(2){background:#febc2e}.code-bar i:nth-child(3){background:#28c840}
+.code-bar span{margin-left:12px;color:var(--dim);font-size:11px;letter-spacing:.15em}
+.code-body{padding:22px;overflow-x:auto;color:#c9c6bf}
+.code-body .c{color:#5a5750}.code-body .k{color:#ff4d1c}.code-body .s{color:#ffb020}.code-body .f{color:#7fb4ff}
+.code-line{opacity:0;transform:translateX(-8px)}
+
+/* ============ FINAL CTA ============ */
+.final{text-align:center;padding:26vh 6vw 18vh}
+.final h2{font-family:var(--font-display);font-weight:800;text-transform:uppercase;
+  font-size:clamp(48px,10vw,160px);line-height:.95;letter-spacing:-.02em}
+.final h2 .outline{-webkit-text-stroke:1.5px var(--ink);color:transparent}
+.final p{color:var(--dim);max-width:520px;margin:32px auto 44px;font-size:17px;line-height:1.65;font-weight:300}
+
+/* ============ FOOTER ============ */
+footer{border-top:1px solid var(--line);padding:44px 6vw;display:flex;justify-content:space-between;
+  align-items:center;gap:20px;flex-wrap:wrap;font-family:var(--font-mono);font-size:11px;
+  letter-spacing:.2em;text-transform:uppercase;color:var(--dim)}
+footer a{color:var(--dim);text-decoration:none;transition:color .3s}
+footer a:hover{color:var(--accent)}
+</style>
+</head>
+<body>
+
+<!-- PRELOADER -->
+<div id="preloader">
+  <div class="pre-mark">PERCH</div>
+  <div class="pre-count"><span id="pre-num">0</span><sup>%</sup></div>
+  <div class="pre-bar"><span id="pre-fill"></span></div>
+</div>
+
+<!-- OVERLAYS -->
+<canvas id="gl"></canvas>
+<div class="vignette"></div>
+<div class="grain"></div>
+<div class="cursor-ring" id="c-ring"></div>
+<div class="cursor-dot" id="c-dot"></div>
+
+<!-- NAV -->
+<nav>
+  <a class="nav-logo" href="#" data-hover>PERCH</a>
+  <div class="nav-links">
+    <a href="#capabilities" data-hover>Capabilities</a>
+    <a href="#protocol" data-hover>Protocol</a>
+    <a href="#deploy" data-hover>Deploy</a>
+  </div>
+</nav>
+
+<main>
+<!-- HERO -->
+<section class="hero">
+  <div class="wrap">
+    <div class="eyebrow" id="hero-eyebrow">MCP &nbsp;/&nbsp; AUTONOMOUS WORKER AGENT</div>
+    <h1 id="hero-title">
+      <span class="line" data-split>Delegate</span>
+      <span class="line outline" data-split>Everything</span><span class="accent-dot">.</span>
+    </h1>
+    <div class="hero-sub" id="hero-sub">
+      <p><strong>PERCH AGENT</strong> plugs into Claude Code over MCP and takes the work off your hands — research, builds, refactors, long-running jobs — executed autonomously while you stay in flow.</p>
+      <div class="hero-cta">
+        <a href="#deploy" class="magnetic solid" data-hover data-magnetic><span class="btn-fill"></span><span class="label">Install the Agent</span></a>
+      </div>
+    </div>
+  </div>
+  <div class="scroll-hint">Scroll</div>
+</section>
+
+<!-- MARQUEE -->
+<section class="marquee">
+  <div class="marquee-track" id="marquee-track">
+    <div class="seg">Delegate Everything <em>◆</em> Autonomous Execution <em>◆</em> Zero Context Switching <em>◆</em> MCP Native <em>◆</em> Ship While You Sleep <em>◆</em></div>
+    <div class="seg">Delegate Everything <em>◆</em> Autonomous Execution <em>◆</em> Zero Context Switching <em>◆</em> MCP Native <em>◆</em> Ship While You Sleep <em>◆</em></div>
+  </div>
+</section>
+
+<!-- MANIFESTO (scroll-scrubbed text reveal) -->
+<section class="manifesto">
+  <div class="wrap">
+    <div class="eyebrow">The Thesis</div>
+    <p id="manifesto-text">Your agent shouldn't wait for instructions line by line. Hand it the objective. PERCH plans, executes, verifies, and reports back — a worker, not a prompt echo. Delegation is the new programming.</p>
+  </div>
+</section>
+
+<!-- HORIZONTAL PINNED FEATURES -->
+<section class="h-pin" id="capabilities">
+  <div class="h-sticky">
+    <div class="h-head">
+      <h2>Capabilities</h2>
+      <div class="h-progress"><span id="h-count">01</span> — 04</div>
+    </div>
+    <div class="h-track" id="h-track">
+      <article class="f-card" data-hover>
+        <div><div class="f-num">01</div><h3>Autonomous<br>Execution</h3>
+        <p>Delegate a full task — not a snippet. PERCH decomposes it, runs multi-step work end to end, and returns verified results with receipts.</p></div>
+        <div class="f-tag">plan → act → verify</div>
+      </article>
+      <article class="f-card" data-hover>
+        <div><div class="f-num">02</div><h3>MCP<br>Native</h3>
+        <p>One config entry and Claude Code gains a worker fleet. Tools surface as first-class MCP calls — no glue code, no wrappers, no babysitting.</p></div>
+        <div class="f-tag">stdio / mcp__perch__*</div>
+      </article>
+      <article class="f-card" data-hover>
+        <div><div class="f-num">03</div><h3>Background<br>Ops</h3>
+        <p>Long-running builds, migrations, research sweeps — dispatched to the background while your session keeps moving. Results arrive when ready.</p></div>
+        <div class="f-tag">fire &amp; forget</div>
+      </article>
+      <article class="f-card" data-hover>
+        <div><div class="f-num">04</div><h3>Grounded<br>Evidence</h3>
+        <p>Every claim traceable to a command, a file, or a source. No hallucinated diffs, no phantom test passes. Verification is the contract.</p></div>
+        <div class="f-tag">receipts or it didn't happen</div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- STATS -->
+<section class="stats">
+  <div class="wrap">
+    <div class="eyebrow">By the numbers</div>
+    <div class="stats-grid" id="stats-grid">
+      <div class="stat"><div class="num"><span data-count="97">0</span><span class="suf">%</span></div><div class="lbl">Tasks completed autonomously</div></div>
+      <div class="stat"><div class="num"><span data-count="12">0</span><span class="suf">×</span></div><div class="lbl">Throughput vs. manual prompting</div></div>
+      <div class="stat"><div class="num"><span data-count="4800">0</span><span class="suf">+</span></div><div class="lbl">Hours of work delegated</div></div>
+      <div class="stat"><div class="num"><span data-count="1">0</span><span class="suf">s</span></div><div class="lbl">To hand off a task</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- CODE / PROTOCOL -->
+<section id="protocol">
+  <div class="wrap split">
+    <div>
+      <div class="eyebrow">The Protocol</div>
+      <h2>One config.<br>Full delegation.</h2>
+      <p>Register PERCH as an MCP server in Claude Code. Every session instantly gains a delegate tool — describe the outcome, get the result.</p>
+      <p>No pipelines. No orchestration layer. Just a worker that answers to your terminal.</p>
+    </div>
+    <div class="code-window" data-hover>
+      <div class="code-bar"><i></i><i></i><i></i><span>.mcp.json</span></div>
+      <div class="code-body" id="code-body">
+<div class="code-line"><span class="c">// claude code → perch agent</span></div>
+<div class="code-line">{</div>
+<div class="code-line">&nbsp;&nbsp;<span class="k">"mcpServers"</span>: {</div>
+<div class="code-line">&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"perch"</span>: {</div>
+<div class="code-line">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"command"</span>: <span class="s">"npx"</span>,</div>
+<div class="code-line">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"args"</span>: [<span class="s">"-y"</span>, <span class="s">"perchai-mcp"</span>]</div>
+<div class="code-line">&nbsp;&nbsp;&nbsp;&nbsp;}</div>
+<div class="code-line">&nbsp;&nbsp;}</div>
+<div class="code-line">}</div>
+<div class="code-line">&nbsp;</div>
+<div class="code-line"><span class="c">&gt; delegate("refactor auth module, keep tests green")</span></div>
+<div class="code-line"><span class="f">✓ perch: planned 6 steps · executing…</span></div>
+<div class="code-line"><span class="f">✓ perch: done — 41 tests passing, diff attached</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FINAL CTA -->
+<section class="final" id="deploy">
+  <div class="wrap">
+    <div class="eyebrow" style="justify-content:center">Deploy the worker</div>
+    <h2><span data-split-final>Stop typing.</span><br><span class="outline" data-split-final>Start delegating.</span></h2>
+    <p>Install PERCH AGENT into Claude Code in under a minute. Your backlog already knows what to do — let it.</p>
+    <a href="#" class="magnetic solid" data-hover data-magnetic><span class="btn-fill"></span><span class="label">npx perchai-mcp</span></a>
+  </div>
+</section>
+</main>
+
+<footer>
+  <span>© 2026 PERCH AGENT</span>
+  <span>Delegate Everything</span>
+  <a href="#" data-hover>Built for Claude Code</a>
+</footer>
+
+<!-- LIBS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<script src="https://unpkg.com/lenis@1.1.14/dist/lenis.min.js"></script>
+<script>
+(function(){
+'use strict';
+gsap.registerPlugin(ScrollTrigger);
+
+/* ============ 1. WEBGL PARTICLE FIELD (three.js) ============ */
+const canvas = document.getElementById('gl');
+let renderer, scene, camera, points, uniforms, glOK = false;
+try {
+  renderer = new THREE.WebGLRenderer({canvas, alpha:true, antialias:false});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  scene = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, .1, 100);
+  camera.position.z = 3.2;
+
+  const COUNT = 9000;
+  const pos = new Float32Array(COUNT*3), rnd = new Float32Array(COUNT);
+  for (let i=0;i<COUNT;i++){
+    // disc-ish cloud with depth
+    const r = Math.pow(Math.random(),.6)*2.4;
+    const a = Math.random()*Math.PI*2;
+    pos[i*3]   = Math.cos(a)*r;
+    pos[i*3+1] = (Math.random()-.5)*2.2;
+    pos[i*3+2] = Math.sin(a)*r - 1.0;
+    rnd[i] = Math.random();
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  geo.setAttribute('aRnd', new THREE.BufferAttribute(rnd,1));
+
+  uniforms = {
+    uTime:{value:0}, uScroll:{value:0},
+    uMouse:{value:new THREE.Vector2(0,0)},
+    uRes:{value:new THREE.Vector2(window.innerWidth, window.innerHeight)}
+  };
+  const mat = new THREE.ShaderMaterial({
+    uniforms, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending,
+    vertexShader:`
+      uniform float uTime; uniform float uScroll; uniform vec2 uMouse;
+      attribute float aRnd;
+      varying float vA;
+      void main(){
+        vec3 p = position;
+        float t = uTime*.25 + aRnd*6.2831;
+        p.x += sin(t + p.y*1.6)*.09;
+        p.y += cos(t*.8 + p.x*1.4)*.09;
+        p.z += sin(t*.6)*.12;
+        // scroll pushes the field back and down
+        p.z -= uScroll*2.2;
+        p.y += uScroll*.9;
+        // mouse repel
+        vec4 mv = modelViewMatrix * vec4(p,1.0);
+        vec2 sp = mv.xy / -mv.z;
+        sp -= uMouse*.6;
+        float d = length(sp);
+        mv.xy += normalize(sp + .0001) * (.10/(d*3.0+.35)) * .35;
+        vA = smoothstep(0.0,1.0, aRnd) * (1.0 - smoothstep(2.0,6.0,-mv.z));
+        gl_Position = projectionMatrix * mv;
+        gl_PointSize = (1.0 + aRnd*2.4) * (240.0 / -mv.z);
+      }`,
+    fragmentShader:`
+      varying float vA;
+      void main(){
+        vec2 uv = gl_PointCoord - .5;
+        float m = smoothstep(.5,.0,length(uv));
+        vec3 hot = vec3(1.0,.30,.11);   // perch orange
+        vec3 cold = vec3(.95,.93,.88);   // bone
+        vec3 col = mix(cold, hot, vA);
+        gl_FragColor = vec4(col, m * (.16 + vA*.5));
+      }`
+  });
+  points = new THREE.Points(geo, mat);
+  scene.add(points);
+  glOK = true;
+} catch(e){ glOK = false; }
+
+let mouseX=0, mouseY=0, tMouseX=0, tMouseY=0, scrollNorm=0;
+window.addEventListener('mousemove', e=>{
+  tMouseX = (e.clientX/window.innerWidth)*2-1;
+  tMouseY = -((e.clientY/window.innerHeight)*2-1);
+});
+window.addEventListener('resize', ()=>{
+  if(!glOK) return;
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  uniforms.uRes.value.set(window.innerWidth, window.innerHeight);
+});
+
+const clock = new THREE.Clock();
+function renderGL(){
+  if(glOK){
+    uniforms.uTime.value = clock.getElapsedTime();
+    mouseX += (tMouseX-mouseX)*.05; mouseY += (tMouseY-mouseY)*.05;
+    uniforms.uMouse.value.set(mouseX, mouseY);
+    uniforms.uScroll.value = scrollNorm;
+    points.rotation.y = clock.getElapsedTime()*.02 + mouseX*.12;
+    renderer.render(scene, camera);
+  }
+  requestAnimationFrame(renderGL);
+}
+renderGL();
+
+/* ============ 2. LENIS SMOOTH SCROLL ============ */
+const lenis = new Lenis({duration:1.15, easing:t=>Math.min(1,1.001-Math.pow(2,-10*t)), smoothWheel:true});
+lenis.on('scroll', ScrollTrigger.update);
+lenis.on('scroll', ({scroll, limit})=>{ scrollNorm = limit ? scroll/limit : 0; });
+gsap.ticker.add(t=>lenis.raf(t*1000));
+gsap.ticker.lagSmoothing(0);
+document.querySelectorAll('a[href^="#"]').forEach(a=>{
+  a.addEventListener('click', e=>{
+    const id = a.getAttribute('href');
+    if(id.length>1){ e.preventDefault(); lenis.scrollTo(id,{offset:-20}); }
+  });
+});
+
+/* ============ 3. CUSTOM CURSOR ============ */
+const dot = document.getElementById('c-dot'), ring = document.getElementById('c-ring');
+let cx=innerWidth/2, cy=innerHeight/2, rx=cx, ry=cy;
+window.addEventListener('mousemove', e=>{ cx=e.clientX; cy=e.clientY;
+  dot.style.transform = `translate(${cx}px,${cy}px) translate(-50%,-50%)`; });
+(function cursorLoop(){
+  rx += (cx-rx)*.16; ry += (cy-ry)*.16;
+  ring.style.transform = `translate(${rx}px,${ry}px) translate(-50%,-50%)`;
+  requestAnimationFrame(cursorLoop);
+})();
+document.querySelectorAll('[data-hover], a, button').forEach(el=>{
+  el.addEventListener('mouseenter', ()=>ring.classList.add('hovering'));
+  el.addEventListener('mouseleave', ()=>ring.classList.remove('hovering'));
+});
+
+/* ============ 4. MAGNETIC BUTTONS ============ */
+document.querySelectorAll('[data-magnetic]').forEach(btn=>{
+  const label = btn.querySelector('.label');
+  btn.addEventListener('mousemove', e=>{
+    const r = btn.getBoundingClientRect();
+    const x = e.clientX - r.left - r.width/2, y = e.clientY - r.top - r.height/2;
+    gsap.to(btn,{x:x*.35, y:y*.45, duration:.5, ease:'power3.out'});
+    gsap.to(label,{x:x*.15, y:y*.2, duration:.5, ease:'power3.out'});
+  });
+  btn.addEventListener('mouseleave', ()=>{
+    gsap.to(btn,{x:0,y:0,duration:.7,ease:'elastic.out(1,.4)'});
+    gsap.to(label,{x:0,y:0,duration:.7,ease:'elastic.out(1,.4)'});
+  });
+});
+
+/* ============ 5. SPLIT-CHARACTER TYPOGRAPHY ============ */
+function splitChars(el){
+  const text = el.textContent;
+  el.textContent = '';
+  const chars = [];
+  [...text].forEach(ch=>{
+    const s = document.createElement('span');
+    s.className = 'char';
+    s.textContent = ch === ' ' ? '\u00A0' : ch;
+    el.appendChild(s);
+    chars.push(s);
+  });
+  return chars;
+}
+const heroLines = document.querySelectorAll('#hero-title [data-split]');
+const heroChars = [];
+heroLines.forEach(l=>heroChars.push(...splitChars(l)));
+// preserve outline/accent classes on the line, chars inherit
+
+/* ============ 6. PRELOADER ============ */
+const preNum = document.getElementById('pre-num');
+const preFill = document.getElementById('pre-fill');
+const preloader = document.getElementById('preloader');
+const preState = {v:0};
+const preTL = gsap.timeline({onComplete:startPage});
+preTL
+  .to('.pre-mark',{opacity:1, duration:.6, ease:'power2.out'})
+  .to(preState,{v:100, duration:2.2, ease:'power2.inOut',
+    onUpdate:()=>{
+      const n = Math.round(preState.v);
+      preNum.textContent = n;
+      preFill.style.transform = `scaleX(${preState.v/100})`;
+    }}, 0)
+  .to('.pre-mark, .pre-count, .pre-bar',{y:-30, opacity:0, duration:.5, ease:'power2.in'}, '+=.15')
+  .to(preloader,{yPercent:-100, duration:.9, ease:'expo.inOut'});
+
+function startPage(){
+  preloader.style.display='none';
+  ScrollTrigger.refresh();
+  introTL.play();
+}
+
+/* ============ 7. HERO INTRO (kinetic chars) ============ */
+const introTL = gsap.timeline({paused:true});
+introTL
+  .from('#hero-eyebrow',{opacity:0, y:20, duration:.7, ease:'power3.out'})
+  .from(heroChars,{yPercent:120, rotateZ:6, opacity:0, duration:1.1,
+    stagger:{each:.018, from:'start'}, ease:'expo.out'}, '-=.35')
+  .from('#hero-sub p',{opacity:0, y:24, duration:.8, ease:'power3.out'}, '-=.6')
+  .from('#hero-sub .magnetic',{opacity:0, y:24, scale:.9, duration:.8, ease:'back.out(1.6)'}, '-=.6')
+  .from('.scroll-hint',{opacity:0, duration:.6}, '-=.4');
+
+/* hero parallax on scroll */
+gsap.to('#hero-title',{yPercent:-18, opacity:.15, ease:'none',
+  scrollTrigger:{trigger:'.hero', start:'top top', end:'bottom top', scrub:true}});
+
+/* ============ 8. INFINITE MARQUEE ============ */
+const track = document.getElementById('marquee-track');
+const segW = ()=>track.firstElementChild.offsetWidth;
+let mqTween;
+function buildMarquee(){
+  if(mqTween) mqTween.kill();
+  gsap.set(track,{x:0});
+  mqTween = gsap.to(track,{x:()=>-segW(), duration:22, ease:'none', repeat:-1});
+}
+buildMarquee();
+window.addEventListener('resize', buildMarquee);
+// velocity skew on scroll
+let mqProxy = {skew:0};
+ScrollTrigger.create({
+  onUpdate:self=>{
+    const v = self.getVelocity();
+    gsap.to(track,{skewX: gsap.utils.clamp(-8,8, v/-300), duration:.4, ease:'power2.out', overwrite:true});
+    if(mqTween) mqTween.timeScale(v>0 ? 2.2 : .4);
+  }
+});
+
+/* ============ 9. SCRUBBED TEXT REVEAL (manifesto) ============ */
+const man = document.getElementById('manifesto-text');
+(function(){
+  const words = man.textContent.trim().split(/\s+/);
+  man.innerHTML = words.map(w=>`<span class="word"><span class="w-inner">${w}</span></span>`).join('');
+  gsap.to(man.querySelectorAll('.w-inner'),{
+    color:'rgba(242,239,233,1)', ease:'none', stagger:.055,
+    scrollTrigger:{trigger:'.manifesto', start:'top 75%', end:'bottom 60%', scrub:.6}
+  });
+})();
+
+/* ============ 10. HORIZONTAL PINNED SECTION ============ */
+const hTrack = document.getElementById('h-track');
+const hCount = document.getElementById('h-count');
+function hDistance(){ return Math.max(0, hTrack.scrollWidth - window.innerWidth + (window.innerWidth*.06)); }
+const hTween = gsap.to(hTrack,{
+  x:()=>-hDistance(), ease:'none',
+  scrollTrigger:{
+    trigger:'.h-pin', start:'top top', end:()=>'+='+ (hDistance()+window.innerHeight),
+    scrub:1, invalidateOnRefresh:true,
+    onUpdate:self=>{ hCount.textContent = String(Math.min(4, Math.floor(self.progress*4)+1)).padStart(2,'0'); }
+  }
+});
+gsap.from('.f-card',{opacity:0, y:60, stagger:.12, duration:.9, ease:'power3.out',
+  scrollTrigger:{trigger:'.h-pin', start:'top 80%'}});
+
+/* ============ 11. ANIMATED STAT COUNTERS ============ */
+document.querySelectorAll('[data-count]').forEach(el=>{
+  const target = +el.dataset.count;
+  const obj = {v:0};
+  ScrollTrigger.create({
+    trigger:el, start:'top 85%', once:true,
+    onEnter:()=>gsap.to(obj,{v:target, duration:2.2, ease:'power2.out',
+      onUpdate:()=>{ el.textContent = Math.round(obj.v).toLocaleString('en-US'); }})
+  });
+});
+gsap.from('.stat',{opacity:0, y:40, stagger:.1, duration:.8, ease:'power3.out',
+  scrollTrigger:{trigger:'.stats', start:'top 80%'}});
+
+/* ============ 12. CODE WINDOW LINE-BY-LINE ============ */
+gsap.to('#code-body .code-line',{
+  opacity:1, x:0, duration:.45, stagger:.09, ease:'power2.out',
+  scrollTrigger:{trigger:'.code-window', start:'top 75%'}
+});
+gsap.from('#protocol .split > div:first-child',{opacity:0, y:50, duration:.9, ease:'power3.out',
+  scrollTrigger:{trigger:'#protocol', start:'top 70%'}});
+
+/* ============ 13. FINAL CTA SPLIT + REVEAL ============ */
+const finalChars = [];
+document.querySelectorAll('[data-split-final]').forEach(el=>finalChars.push(...splitChars(el)));
+gsap.from(finalChars,{yPercent:110, opacity:0, duration:1, stagger:.02, ease:'expo.out',
+  scrollTrigger:{trigger:'.final', start:'top 70%'}});
+gsap.from('.final p, .final .magnetic',{opacity:0, y:30, stagger:.15, duration:.8, ease:'power3.out',
+  scrollTrigger:{trigger:'.final', start:'top 60%'}});
+
+/* section eyebrows */
+gsap.utils.toArray('section .eyebrow').forEach(eb=>{
+  if(eb.id==='hero-eyebrow') return;
+  gsap.from(eb,{opacity:0, x:-24, duration:.7, ease:'power3.out',
+    scrollTrigger:{trigger:eb, start:'top 88%'}});
+});
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+# perch-agent-mcp
+
+> MCP stdio server: Claude Code / opencode delegate tasks to Perch AI as an autonomous worker agent via the official `perch` CLI. MIT. Node 20+.
+
+## Install
+1. Requires: Node 20+, Perch CLI installed + `perch login` done.
+2. `git clone https://github.com/DMCconnect/perch-agent-mcp && cd perch-agent-mcp && npm install`
+3. Claude Code: `claude mcp add --scope user perch-agent -- node <abs-path>/index.js`
+   (recommended env: PERCH_AGENT_MODEL=qwen-3.8-max, PERCH_AGENT_EFFORT=high; long tasks: MCP_TOOL_TIMEOUT=900000)
+4. opencode: add to config → `"mcp": { "perch-agent": { "type": "local", "command": ["node", "<abs-path>/index.js"], "enabled": true, "timeout": 1200000 } }`
+
+## Tools
+- delegate_to_perch {task*, cwd, mode=agents, model=$PERCH_AGENT_MODEL|standard, effort=high, persona, thread_id, guidelines=true, permission=take_the_wheel, wait_seconds=120, timeout_seconds=1800} → inline result {ok, assistant_text, thread_id, model_id, usage, error?} OR {status:"running", job_id}
+- perch_job_status {job_id} → same shape, live
+- perch_job_cancel {job_id} → kills process tree
+- perch_status {} → CLI version, sign-in, job list (no model call)
+
+## Behavior contract
+- Karpathy guidelines (assumptions/simplicity/surgical scope/evidence) prepended to every task; disable with guidelines:false.
+- permission default take_the_wheel — required for autonomous writes; auto_review makes the worker stop and ask.
+- Errors surface verbatim plan-gate messages from Perch + hint. Exit codes and stdout/stderr tails included on failure.
+- Long tasks: pass wait_seconds low → get job_id → poll perch_job_status; cancel anytime via perch_job_cancel.
+
+## Env
+PERCH_AGENT_MODEL (default "standard"; promo pin example "qwen-3.8-max", free on Starter until 2026-11-20), PERCH_AGENT_EFFORT (default "high"), PERCH_AGENT_DEFAULT_CWD, PERCH_AGENT_CLI (explicit CLI .js path).
+
+## Constraints
+- Uses ONLY the official perch CLI surface. No internal APIs, no session-token proxies. Requires a signed-in Perch session (`perch login`).
+- Windows-first (spawn via resolved JS entry, taskkill /T /F cancellation) but plain Node — should run anywhere the CLI runs.
+
+## Verify
+npm test (parser self-check) · npm run e2e (full MCP E2E) · npm run bench:polyglot (Exercism, needs python+pytest)

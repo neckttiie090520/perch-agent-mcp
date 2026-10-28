@@ -1,0 +1,39 @@
+{
+  "name": "perch-agent-mcp",
+  "version": "1.0.0",
+  "description": "MCP server: Claude Code / opencode delegate tasks to Perch AI as an autonomous worker agent via the official perch CLI",
+  "license": "MIT",
+  "type": "module",
+  "main": "index.js",
+  "bin": { "perch-agent-mcp": "index.js" },
+  "engines": { "node": ">=20" },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "perch",
+    "perchai",
+    "claude-code",
+    "opencode",
+    "subagent",
+    "delegation",
+    "coding-agent"
+  ],
+  "scripts": {
+    "start": "node index.js",
+    "test": "node test-parse.mjs",
+    "e2e": "node test-client.mjs",
+    "bench:polyglot": "node bench/bench5-polyglot.mjs polyglot",
+    "bench:agentic": "node bench/bench4-agentic.mjs",
+    "bench:diff": "node bench/bench6-diff.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.13.0",
+    "zod": "^3.25.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DMCconnect/perch-agent-mcp.git"
+  },
+  "bugs": { "url": "https://github.com/DMCconnect/perch-agent-mcp/issues" },
+  "homepage": "https://github.com/DMCconnect/perch-agent-mcp#readme"
+}
